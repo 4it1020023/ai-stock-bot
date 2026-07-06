@@ -139,11 +139,24 @@ def get_stock_df(symbol: str) -> pd.DataFrame:
     return df.dropna()
 
 def get_crypto_df(symbol: str, interval="1h", limit=200) -> pd.DataFrame:
-    url = "https://api.binance.com/api/v3/klines"
-    r = requests.get(url, params={"symbol": symbol, "interval": interval, "limit": limit}, timeout=10)
-    r.raise_for_status()
-    cols = ["open_time","open","high","low","close","volume",
-            "close_time","qav","trades","tbbase","tbquote","ignore"]
+    endpoints = [
+        "https://api1.binance.com/api/v3/klines",
+        "https://api2.binance.com/api/v3/klines",
+        "https://api3.binance.com/api/v3/klines",
+        "https://api.binance.com/api/v3/klines",
+    ]
+    r = None
+    for url in endpoints:
+        try:
+            resp = requests.get(url, params={"symbol": symbol, "interval": interval, "limit": limit}, timeout=10)
+            if resp.status_code == 200:
+                r = resp
+                break
+        except Exception:
+            continue
+    if r is None:
+        raise Exception(f"所有 Binance API 端點皆無法存取 ({symbol})")
+    cols = ["open_time","open","high","low","close","volume","close_time","qav","trades","tbbase","tbquote","ignore"]
     df = pd.DataFrame(r.json(), columns=cols)
     df["open_time"] = pd.to_datetime(df["open_time"], unit="ms")
     for c in ["open","high","low","close","volume"]:
