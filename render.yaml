@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: ai-stock-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120
+    envVars:
+      - key: LINE_TOKEN
+        sync: false          # 部署後在 Render 手動填入
+      - key: LINE_SECRET
+        sync: false
+      - key: LINE_USER_ID
+        sync: false
+      - key: BASE_URL
+        sync: false          # 例如 https://ai-stock-bot.onrender.com
