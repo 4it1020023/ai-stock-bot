@@ -187,45 +187,91 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
 def analyze(df: pd.DataFrame) -> dict:
     latest = df.iloc[-1]
     prev   = df.iloc[-2]
-    important, info = [], []
+    important, info, explanations = [], [], []
+    score = 0
 
-    # ── 暴漲/暴跌偵測 ──
+    # 支撐壓力（近20根高低點）
+    recent = df.tail(20)
+    resistance = round(float(recent["high"].max()), 4)
+    support    = round(float(recent["low"].min()), 4)
+
+    # 暴漲/暴跌偵測
     pct_change = (latest["close"] - latest["open"]) / latest["open"] * 100
     if pct_change >= SPIKE_THRESHOLD:
-        important.append("暴漲 " + f"{pct_change:.1f}" + "%！注意風險")
+        important.append("🚀 暴漲 " + f"{pct_change:.1f}%" + "！")
+        explanations.append("   → 單根K棒大漲，注意追高風險")
+        score += 1
     elif pct_change <= -SPIKE_THRESHOLD:
-        important.append("暴跌 " + f"{pct_change:.1f}" + "%！注意風險")
+        important.append("💥 暴跌 " + f"{pct_change:.1f}%" + "！")
+        explanations.append("   → 單根K棒大跌，注意停損")
+        score -= 2
 
-    # ── RSI ──
+    # RSI
     rsi = latest["rsi"]
     if rsi > RSI_OVERBOUGHT:
-        important.append("RSI 超買（" + f"{rsi:.1f}" + "），留意拉回")
+        important.append("⚠️ RSI 超買（" + f"{rsi:.1f}" + "）")
+        explanations.append("   → RSI > 75，市場過熱，短線可能拉回")
+        score -= 1
     elif rsi < RSI_OVERSOLD:
-        important.append("RSI 超賣（" + f"{rsi:.1f}" + "），留意反彈")
+        important.append("⚠️ RSI 超賣（" + f"{rsi:.1f}" + "）")
+        explanations.append("   → RSI < 25，市場超跌，短線可能反彈")
+        score += 1
 
-    # ── MACD 交叉 ──
+    # MACD 交叉
     if prev["macd"] < prev["macd_signal"] and latest["macd"] > latest["macd_signal"]:
-        important.append("MACD 黃金交叉（偏多訊號）")
+        important.append("🟢 MACD 黃金交叉")
+        explanations.append("   → 短期動能轉強，偏多訊號，可留意買點")
+        score += 2
     elif prev["macd"] > prev["macd_signal"] and latest["macd"] < latest["macd_signal"]:
-        important.append("MACD 死亡交叉（偏空訊號）")
+        important.append("🔴 MACD 死亡交叉")
+        explanations.append("   → 短期動能轉弱，偏空訊號，建議觀望")
+        score -= 2
 
-    # ── 布林通道 ──
+    # 布林通道
     if latest["close"] > latest["bb_upper"]:
-        important.append("突破布林上軌，留意拉回")
+        important.append("🔺 突破布林上軌")
+        explanations.append("   → 價格超出正常波動範圍，留意短線拉回")
+        score -= 1
     elif latest["close"] < latest["bb_lower"]:
-        important.append("跌破布林下軌，留意反彈")
+        important.append("🔻 跌破布林下軌")
+        explanations.append("   → 價格跌出正常波動範圍，留意短線反彈")
+        score += 1
 
-    # ── 均線 ──
-    trend = "均線偏多（MA20 > MA60）" if latest["ma20"] > latest["ma60"] else "均線偏空（MA20 < MA60）"
-    info.append(trend)
+    # 均線
+    if latest["ma20"] > latest["ma60"]:
+        info.append("📈 均線偏多（MA20 > MA60）")
+        info.append("   → 短期均線在長期均線之上，中期趨勢向上")
+        score += 1
+    else:
+        info.append("📉 均線偏空（MA20 < MA60）")
+        info.append("   → 短期均線在長期均線之下，中期趨勢向下")
+        score -= 1
+
+    # 綜合評估
+    if score >= 3:
+        verdict, stars = "強烈偏多", "★★★★★"
+    elif score >= 1:
+        verdict, stars = "偏多觀察", "★★★☆☆"
+    elif score == 0:
+        verdict, stars = "中性盤整", "★★★☆☆"
+    elif score >= -2:
+        verdict, stars = "偏空觀望", "★★☆☆☆"
+    else:
+        verdict, stars = "強烈偏空", "★☆☆☆☆"
 
     return {
-        "price":      round(float(latest["close"]), 4),
-        "rsi":        round(float(rsi), 2),
-        "pct_change": round(float(pct_change), 2),
-        "important":  important,
-        "info":       info,
-        "has_alert":  len(important) > 0,
+        "price":        round(float(latest["close"]), 4),
+        "rsi":          round(float(rsi), 2),
+        "pct_change":   round(float(pct_change), 2),
+        "important":    important,
+        "explanations": explanations,
+        "info":         info,
+        "has_alert":    len(important) > 0,
+        "verdict":      verdict,
+        "stars":        stars,
+        "score":        score,
+        "resistance":   resistance,
+        "support":      support,
     }
 
 
